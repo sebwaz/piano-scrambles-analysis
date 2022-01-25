@@ -450,5 +450,7 @@ ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), 
 ###
 
 source(here::here("data-wrangling", "mcmc.R"))
-burnin    <- mcmc(dp, 10000)
-posterior <- mcmc(dp, 100000, tail(burnin$samples, 1), burnin$sigmas, burnin$sigma_scalar)
+burnin    <- mcmc(dp, 10000000, 1000)
+posterior <- mcmc(dp, 10000000, 1000, tail(burnin$samples, 1), burnin$sigmas, burnin$sigma_scalar)
+
+

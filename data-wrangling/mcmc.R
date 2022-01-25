@@ -48,90 +48,107 @@ get_log_likelihood <- function(params, dp) {
 
 
 # Function to estimate the parameters using MCMC
-mcmc <- function(d_prime, n_samples, last_sample, last_sigmas, last_sigma_scalar) {
+mcmc <- function(d_prime, n_samples, n_thin, last_sample, last_sigmas, last_sigma_scalar) {
   # Use a shorter variable name
   dp <- d_prime
-
+  
   # Count the number of parameters
   # Number subjects (R_s) + Number tasks (F_t) + one variance parameter
   n_params <- nrow(dp) + ncol(dp) + 1
-
+  
   # Block size for updating the MCMC sigmas
   update_block_sz <- 5000
-
+  
   # Prior on all parameters ~ Unif(-100, 100) except sigma ~ Unif(0, 100)
   mins <- c(rep(-100, n_params - 1), 0)
   maxes <- rep(100, n_params)
-
+  
   # Default for last_sample
   if (missing(last_sample)) {
     last_sample <- c(rep(0, nrow(dp)), rep(1, ncol(dp)), 1)
   }
-
+  
   # Default for last_sigmas
   if (missing(last_sigmas)) {
     sigmas <- rep(0.1, n_params)
   } else {
     sigmas <- last_sigmas
   }
-
+  
   # Default for last_sigma_scalar
   if (missing(last_sigma_scalar)) {
     sigma_scalar <- 1
   } else {
     sigma_scalar <- last_sigma_scalar
   }
-
-
+  
+  
   # MCMC setup
-  # Create arrays to store the parameter estimates and log likelihoods
-  samples     <- matrix(, nrow = n_samples, ncol = n_params)
-  candids     <- matrix(, nrow = n_samples, ncol = n_params)
-  loglike_s   <- matrix(, nrow = n_samples, ncol = 1)
-  loglike_c   <- matrix(, nrow = n_samples, ncol = 1)
-  like_ratios <- matrix(, nrow = update_block_sz, ncol = 1)
-
+  # Create arrays to store the *kept* parameter estimates and log likelihoods
+  samples     <- matrix(, nrow = floor(n_samples / n_thin), ncol = n_params)
+  candids     <- matrix(, nrow = floor(n_samples / n_thin), ncol = n_params)
+  loglike_s   <- matrix(, nrow = floor(n_samples / n_thin), ncol = 1)
+  loglike_c   <- matrix(, nrow = floor(n_samples / n_thin), ncol = 1)
+  
+  
+  # Create arrays to temporarily store above + thinned samples
+  tmp_samples     <- matrix(, nrow = update_block_sz, ncol = n_params)
+  tmp_candids     <- matrix(, nrow = update_block_sz, ncol = n_params)
+  tmp_loglike_s   <- matrix(, nrow = update_block_sz, ncol = 1)
+  tmp_loglike_c   <- matrix(, nrow = update_block_sz, ncol = 1)
+  tmp_like_ratios <- matrix(, nrow = update_block_sz, ncol = 1)
+  
   # Initialize the chain
-  samples[1, ] <- last_sample
-  loglike_s[1] <- get_log_likelihood(samples[1, ], dp)
-  update_block_ctr <- 0
-
-
+  tmp_samples[1, ] <- last_sample
+  tmp_loglike_s[1] <- get_log_likelihood(tmp_samples[1, ], dp)
+  
+  
   # Run the MCMC
   for (k in 2:n_samples) {
+    
+    # To index temp arrays
+    k_this <- ((k - 1) %% update_block_sz + 1)
+    k_last <- if (k_this - 1 == 0) update_block_sz else k_this - 1 
+    
     # Get a candidate
-    update_block_ctr <- update_block_ctr + 1
-    candidate <- get_candidate(samples[k - 1, ], mins, maxes, sigmas, dp)
-
+    candidate <- get_candidate(tmp_samples[k_last, ], mins, maxes, sigmas, dp)
+    
     # Use likelihood ratio to determine the probability of accepting the new candidate
-    candids[k, ] <- candidate
-    loglike_c[k] <- get_log_likelihood(candidate, dp)
-    like_ratios[update_block_ctr] <- exp(loglike_c[k] - loglike_s[k - 1])
-    if (runif(1) < like_ratios[update_block_ctr]) {
+    tmp_candids[k_this, ] <- candidate
+    tmp_loglike_c[k_this] <- get_log_likelihood(candidate, dp)
+    tmp_like_ratios[k_this] <- exp(tmp_loglike_c[k_this] - tmp_loglike_s[k_last])
+    if (runif(1) < tmp_like_ratios[k_this]) {
       # Accept the candidate
-      samples[k, ] <- candidate
-      loglike_s[k] <- loglike_c[k]
+      tmp_samples[k_this, ] <- candidate
+      tmp_loglike_s[k_this] <- tmp_loglike_c[k_this]
     } else {
       # Reject the candidate
-      samples[k, ] <- samples[k - 1, ]
-      loglike_s[k] <- loglike_s[k - 1]
+      tmp_samples[k_this, ] <- tmp_samples[k_last, ]
+      tmp_loglike_s[k_this] <- tmp_loglike_s[k_last]
     }
-
+    
     # Update the sigmas at after each update block
-    if (update_block_ctr == update_block_sz) {
+    if (k_this == update_block_sz) {
       # Announce progress
       cat("\f")
       print(paste("Iteration", k, "of", n_samples))
-      print(paste("Median LRatio:", median(like_ratios, na.rm = TRUE)))
-
+      print(paste("Median LRatio:", median(tmp_like_ratios, na.rm = TRUE)))
+      
       # Do the update
-      update           <- update_sigmas(sigmas, samples[(k - update_block_sz + 1):k, ], like_ratios, sigma_scalar)
+      update           <- update_sigmas(sigmas, tmp_samples, tmp_like_ratios, sigma_scalar)
       sigmas           <- update$sigmas
       sigma_scalar     <- update$sigma_scalar
-      update_block_ctr <- 0
+    }
+    
+    # Keep every n_thin^th sample
+    if (k %% n_thin == 0) {
+      samples[k / n_thin, ] <- tmp_samples[k_this, ]
+      candids[k / n_thin, ] <- tmp_candids[k_this, ]
+      loglike_s[k / n_thin] <- tmp_loglike_s[k_this]
+      loglike_c[k / n_thin] <- tmp_loglike_c[k_this]
     }
   }
-
+  
   # Done
   return(list(
     "samples"         = samples,
