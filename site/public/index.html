@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width">
+  <link rel="icon" type="image/png" href="media/ico.png">
+
+  <title>Tone scramble experiment</title>
+
+  <link href="lib/jsPsych-master/css/jspsych.css" rel="stylesheet" type="text/css">
+  </link>
+</head>
+
+<body>
+  <p>Preparing the experiment... This should only take a few seconds.</p>
+  <p>If you are using Internet Explorer, this page may not run.</p>
+  <p>Please switch to a supported browser (Firefox or Chrome).</p>
+
+  <!-- Load the sounds -->
+  <audio src="snd/mcg_mp_060_C4.wav"  type="audio/wav" id="C4">
+  <audio src="snd/mcg_mp_063_Eb4.wav" type="audio/wav" id="Eb4">
+  <audio src="snd/mcg_mp_064_E4.wav"  type="audio/wav" id="E4">
+  <audio src="snd/mcg_mp_067_G4.wav"  type="audio/wav" id="G4">
+  <audio src="snd/mcg_mp_072_C5.wav"  type="audio/wav" id="C5">
+    
+  <audio src="snd/mcg_mp_079_G5.wav"  type="audio/wav" id="G5">
+  <audio src="snd/mcg_mp_082_Bb5.wav" type="audio/wav" id="Bb5">
+  <audio src="snd/mcg_mp_083_B5.wav"  type="audio/wav" id="B5">
+  <audio src="snd/mcg_mp_086_D6.wav"  type="audio/wav" id="D6">
+  <audio src="snd/mcg_mp_091_G6.wav"  type="audio/wav" id="G6">
+
+  <!-- Math helper functions, sound generation, data mgmt -->
+  <script src="lib/math_helpers.js" type="text/javascript"></script>
+  <script src="lib/sound_functions.js" type="text/javascript"></script>
+  <script src="lib/data_mgmt.js" type="text/javascript"></script>
+
+  <!-- JsPsych functions -->
+  <script src="lib/jsPsych-master/jspsych.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-html-button-response.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-html-keyboard-response.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-external-html.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-survey-text.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-video-button-response.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-survey-multi-choice.js"></script>
+  <script src="lib/jsPsych-master/plugins/jspsych-survey-likert.js"></script>
+
+  <!-- PapaParse functions -->
+  <script src="lib/PapaParse/papaparse.js"></script>
+
+  <!-- The core Firebase JS SDK is always required and must be listed first -->
+  <script src="/__/firebase/7.23.0/firebase-app.js"></script>
+
+  <!-- Include only the Firebase features as you need -->
+  <script src="/__/firebase/7.23.0/firebase-analytics.js"></script>
+  <script src="/__/firebase/7.23.0/firebase-auth.js"></script>
+  <script src="/__/firebase/7.23.0/firebase-storage.js"></script>
+
+  <!-- Initialize Firebase -->
+  <script src="/__/firebase/init.js"></script>
+
+  <!-- Config for using Firebase storage -->
+  <script>
+    firebaseConfig = {
+      apiKey: "AIzaSyDvWZ3fIlTgHGKHLZhsDdSVIiZB54gh3BM",
+      authDomain: "piano-scrambles.firebaseapp.com",
+      databaseURL: "https://piano-scrambles.firebaseio.com",
+      projectId: "piano-scrambles",
+      storageBucket: "piano-scrambles.appspot.com",
+      messagingSenderId: "711321788380",
+      appId: "1:711321788380:web:82f08401b116d902b63919",
+      measurementId: "G-L22397VQGV"
+    };
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+  </script>
+
+  <!-- Get the sound file PCM data using getDocumentById -->
+  <script>
+    // Initialize the audio context and get PCM data from sound files
+    function init() {
+
+      // Initialize the audio context and set sample rate
+      aud_ctx = new AudioContext();
+      fs = aud_ctx.sampleRate;
+
+      // Get PCM data from sound files
+      for (let k = 0; k < 10; k++) {
+
+        // Index the the proper audio files using `k`
+        let aud = k < 5 ?
+            document.getElementById(note_ids_C4[k]) :
+            document.getElementById(note_ids_G5[k % 5]);
+        
+        // Get the audio as a blob using http request
+        let xhr = new XMLHttpRequest();
+        xhr.open('GET', aud.src);
+        xhr.responseType = 'blob';
+        xhr.send();
+
+        // Once the audio blob is received, decode as PCM
+        let reader = new FileReader()
+        xhr.onload = e => reader.readAsArrayBuffer(xhr.response)
+        reader.onloadend = e =>
+          aud_ctx.decodeAudioData(reader.result, function(result) {
+            // Print to console the sample rate of the loaded audio 
+            // (This should match system sample rate; "The decoded AudioBuffer is resampled to the AudioContext's sampling rate, then passed to a callback or promise."
+            // see: https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/decodeAudioData) 
+            console.log(result.sampleRate);
+          
+            // Place the PCM data into the correct array based on `k`
+            if (k < 5) {
+              note_pcm_C4[k]     = [result.getChannelData(0), result.getChannelData(1)];
+            } else {
+              note_pcm_G5[k % 5] = [result.getChannelData(0), result.getChannelData(1)];
+            }
+          })
+      }
+    }
+    init();
+
+  </script>
+
+  <script>
+    /////////////////////////////////////
+    // Setup
+
+    // Create timeline
+    var timeline = [];
+
+    // Create array to store data for each trial as a JSON object
+    var trial_data = [];
+
+    // Global variables for cond_order and trials_type
+    // These will be reset when transitioning from training to testing phase
+    //  0 : 3-task sines
+    //  1 : 3-task piano    
+    var cond_order;
+    var trials_type;
+    
+    // Number of trials (total per block, including training), number to toss a priori
+    var ntrials = 40;
+    var ntrain = 10;
+
+    // Random ordering of major/minor for test trials
+    var cond_order_test = [NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN];
+    var trials_type_test = new Array(cond_order_test.length);
+    for (let k = 0; k < cond_order_test.length; k++) {
+      trials_type_test[k] = sv_sum(1, mod_vec(randperm(ntrain), 2)).concat(sv_sum(1, mod_vec(randperm(ntrials-ntrain), 2)));
+    }
+    
+    // Random ordering of major/minor for training trials
+    var ntrials_train = 20;
+    var cond_order_train = [3, 0, 4, 1, 5, 2];
+    var trials_type_train = new Array(cond_order_train.length);
+    for (let k = 0; k < cond_order_train.length; k++) {
+      trials_type_train[k] = sv_sum(1, mod_vec(randperm(ntrials_train), 2));
+    }
+    
+    // Set cond_order and trials_type to training mode first
+    var training_bool = true;
+    cond_order = cond_order_train;
+    trials_type = trials_type_train;
+
+    // Track current block and trial
+    var cur_block = -1;
+    var cur_trial = 0;
+
+    // Tracks whether the participant is ready to proceed past the examples
+    var loop_again;
+
+    // Other global variables
+    var cur_type = NaN;       // Track current scramble type (easier than constantly indexing trials_type)
+    var cur_ref = NaN;        // Track current reference scramble type (1 or 2 is same-diff, NaN otherwise)
+
+    var trial_obj;            // Track the parameters of the latest stimulus
+    var trial_resp = NaN      // Track subject's response to latest trial
+
+    var last_correct = false; // Track correctness of latest response
+    var total_correct = 0;    // Track total number of correct responses
+
+    var stim_start_time;      // Track the onset time of the most recent stimulus playback
+    var stim_end_time;        // Track the offset time of stimulus / onset of response interval
+    var resp_time;            // Track time responded (reaction time = resp_time - stim_end_time)
+
+    var sid;                  // Save anonymous subject ID code 
+    var lang;                 // Save subject's primary language
+    var lang_other = "NA";    // Save subject's language (if not listed in first question)
+    var years_train;          // Save subject's years of formal musical training
+    var fname;                // Specifies filename for the participant's data
+
+    var latin_sq = [];        // Save a copy of the Latin square
+    var latin_row = NaN;      // Save a track the row index of Latin square assigned to the participant
+    
+    var exp_progress = 0;     // Used to update the progress bar through out the experiment
+
+    // Generate filename for participant's data based on unique anonymous ID code and current time
+    var url = new URL(window.location.href);
+    var params = new URLSearchParams(url.search);
+    sid = params.get('id');
+    fname = sid.concat("_").concat(Date.now());
+    
+    // Function to check participant consent
+    var check_consent = function(elem) {
+      if (document.getElementById("consent_checkbox").checked & document.getElementById("headphones_checkbox").checked) {
+        return true;
+      } else {
+        alert("If you wish to participate, you must check both boxes on this page.");
+        return false;
+      }
+      return false;
+    };
+
+    // Screen that warns user of unusual sampling rate. Does not allow user to progress. Prompts user to change computers.
+    var fs_warn = {
+      type: "html-keyboard-response",
+      stimulus: "",
+      choices: [],
+      on_start: function(fs_warn) {
+        fs_warn.stimulus = ("<p><b>Your computer seems to be using an unusual sampling rate for sound (").concat(fs.toString()).concat(" Hz).</b></p>");
+        fs_warn.stimulus = fs_warn.stimulus.concat("<p>Try running this page on a different computer. If you continue to receive this error, please contact the research staff for this study.</p>");
+      }
+    }
+    
+    // If conditional_function returns true, then the fs_warn screen above is presented
+    var if_node_fs_warn = {
+      timeline: [fs_warn],
+      conditional_function: function() {
+        return (fs < 44100 || fs > 48000);
+      }
+    }
+    timeline.push(if_node_fs_warn);
+    
+    // Screen: welcome
+    var welcome = {
+      type: "external-html",
+      url: "page_welcome.html",
+      cont_btn: "start",
+      check_fn: check_consent
+    };
+    timeline.push(welcome);
+
+    // Screen: warning
+    var warning = {
+      type: "external-html",
+      url: "page_warning.html",
+      cont_btn: "proceed",
+    };
+    timeline.push(warning);
+
+    /*
+    // Screen: collect ID
+    var collect_id = {
+      type: "survey-text",
+      preamble: "Please enter your unique ID code assigned by SONA. Our research staff will use this information to assign SONA credit. Please verify that this information matches what is shown on SONA.",
+      questions: [{
+        name: "sid",
+        prompt: "ID code",
+        placeholder: "Type here",
+        required: true
+      }],
+      on_finish: function(data) {
+        // Generate filename for participant's data based on unique anonymous ID code and current time
+        sid = JSON.parse(data.responses)["sid"];
+        fname = sid.concat("_").concat(Date.now());
+      }
+    }
+    timeline.push(collect_id);
+    */
+
+    // Screen: collect language
+    var lang_options = ["Arabic", "Chinese (Cantonese)", "Chinese (Mandarin)", "English", "Korean", "Spanish", "Telugu", "Turkish", "Vietnamese", "Other (not listed)"];
+    var collect_lang1 = {
+      type: "survey-multi-choice",
+      questions: [{
+        prompt: "What is your native language?",
+        name: 'lang',
+        options: lang_options,
+        required: true
+      }],
+      on_finish: function(data) {
+        lang = JSON.parse(data.responses)["lang"];
+      }
+    }
+    timeline.push(collect_lang1);
+
+    // Screen: collect language (other)
+    var collect_lang2 = {
+      type: "survey-text",
+      preamble: "Since your native language was not listed on the previous page, please enter it here.",
+      questions: [{
+        name: "lang_other",
+        prompt: "Native language",
+        placeholder: "e.g., Farsi",
+        required: true
+      }],
+      on_finish: function(data) {
+        lang_other = JSON.parse(data.responses)["lang_other"];
+      }
+    }
+
+    // If conditional_function returns true, then the collect_lang2 screen above is presented
+    var if_node_collect_lang2 = {
+      timeline: [collect_lang2],
+      conditional_function: function() {
+        return (lang == "Other (not listed)");
+      }
+    }
+    timeline.push(if_node_collect_lang2);
+
+    // Screen: collect years of formal musical training
+    var collect_years = {
+      type: "survey-text",
+      preamble: "How many years have you received formal musical training? Round to the nearest year. Enter a numeric value.",
+      questions: [{
+        name: "years_train",
+        prompt: "Years of training",
+        required: true
+      }],
+      post_trial_gap: 600,
+      on_finish: function(data) {
+        years_train = JSON.parse(data.responses)["years_train"];
+      }
+    }
+    timeline.push(collect_years);
+    
+    /////////////////////////////////////
+    // Calibration loop (used to adjust headphone levels)
+    // Adapted from https://github.com/joselyngithubs/BigSpeechExperiment/blob/master/run_headphone_check.js
+    var calib_choice;
+    var first_calib = true;
+    var calibrate1 = {
+        type: 'html-button-response',
+        stimulus: '',
+        prompt: '',
+        choices: [],
+        on_start: function(calibrate2) {
+          calibrate2.prompt = first_calib ?
+            '<p><b>Calibration</b></p><p>Please put on your headphones, and <b>turn the volume all the way DOWN.</b></p></p>Then, press <b>Calibrate</b> and increase the volume of your headphones until the calibration noise is at a loud but comfortable level.</p><p>Play the calibration sound as many times as you like. Press <b>Continue</b> when you are finished calibrating.</p>' : 
+            '<p><b>Calibration</b></p><p>Press <b>Calibrate</b> and adjust the volume of your headphones until the calibration noise is at a loud but comfortable level.</p><p>Play the calibration sound as many times as you like. Press <b>Continue</b> when you are finished calibrating.</p>',
+          calibrate2.choices = first_calib ? ['Calibrate'] : ['Calibrate','Continue'];
+        },
+        on_finish: function(calibrate1) {
+          calib_choice = calibrate1.button_pressed;
+          first_calib = false;
+        }
+    }
+
+    var calibrate2 = {
+        type: 'html-button-response',
+        stimulus: '',
+        prompt: '<p><b>Calibration</b></p><p>Press <b>Calibrate</b> and adjust the volume of your headphones until the calibration noise is at a loud but comfortable level.</p><p>Play the calibration sound as many times as you like. Press <b>Continue</b> when you are finished calibrating.</p>',
+        choices: [],
+        trial_duration: 3000,
+        on_start: function(calibrate2) {
+          if (calib_choice == 0) {
+            play_calib_noise();
+          } else {
+            calibrate2.trial_duration = 0;
+          }
+          
+        },
+        on_finish: function(calibrate2) {
+          // White noise uses same source node as scrambles, so can just call stop_scramble() to ensure playback stops
+          stop_scramble();
+        }
+    }
+
+    var calibrate_loop = {
+        timeline: [calibrate1,calibrate2],
+        loop_function: function(){
+            return calib_choice == 0;
+        }
+    }
+    timeline.push(calibrate_loop);
+
+    /////////////////////////////////////
+    // Headphone check
+    // Adapted from https://github.com/joselyngithubs/BigSpeechExperiment/blob/master/run_headphone_check.js
+    var headphone_test_instructions = {
+        type: 'html-button-response',
+        stimulus: '<p><b>Calibration</b></p><p>On the following 6 trials, you will hear 3 sounds separated by silences.</p><p>Simply judge WHICH SOUND IS SOFTEST (quietest) -- 1, 2, or 3?</p><p>Test sounds can only be played once!</p><p>To begin, press <b>Start</b>.</p>',
+        choices: ['Start'],
+        post_trial_gap: 600
+    }
+    timeline.push(headphone_test_instructions);
+    
+    var tone_order;
+    var headphone_score = 0;
+    var headphone_cur_trial = 0;
+    var headphone_trial = {
+        type: 'html-button-response',
+        stimulus: '',
+        prompt: 'Which sound is the SOFTEST (QUIETEST)?',
+        choices: ['1','2','3'],
+        post_trial_gap: 600,
+        on_start: function(headphone_trial){
+          stim_start_time = Date.now();
+          tone_order = play_3afc();
+          headphone_cur_trial++;
+        },
+        on_finish: function(headphone_trial){
+          // Headphone check uses same source node as scrambles, so can just call stop_scramble() to ensure playback stops
+          stop_scramble();
+          if(headphone_trial.button_pressed == which_equals(tone_order, 0)) {
+              headphone_score++;
+          }
+          trial_data = trial_data.concat({
+            // Note that headphone check is indicated with `condition` and `block` -1
+            // Moreover, the position of the target is stored as `scramble_type`
+            // and the order of the tone types is stored as `seq`.
+            subj_id: sid,
+            block: -1,
+            condition: -1,
+            training_bool: false,
+            cur_trial: headphone_cur_trial,
+            scramble_type: which_equals(tone_order, 0),
+            response: headphone_trial.button_pressed,
+            stim_start_time: stim_start_time,
+            stim_end_time: NaN,
+            resp_time: NaN,
+            seq: tone_order,
+            cond_order: cond_order_test,
+            latin_row: latin_row,
+            lang: lang,
+            lang_other: lang_other,
+            years_train: years_train,
+            device_samp_hz: fs
+          });
+        }
+    }
+
+    var headphone_seq = {
+        timeline: [headphone_trial],
+        repetitions: 6
+    }
+    timeline.push(headphone_seq);
+    
+    // This screen appears if score below 5
+    var try_again = {
+        type: "html-button-response",
+        stimulus: '<p>Your score suggests that you are not wearing headphones. Please make sure that you are wearing headphones, and try again.</p>',
+        choices: ['Try again'],
+        on_finish: function() {
+          // Reset
+          headphone_score = 0;
+          headphone_cur_trial = 0;
+        }
+    }
+    
+    var if_node_headphone = {
+        timeline: [try_again, headphone_seq],
+        conditional_function: function() {
+            // retake the test (only once) if score < 5. If they still get < 5 the second time, then they move on.
+            return (headphone_score < 5);
+        }
+    }
+    timeline.push(if_node_headphone);
+
+    //Final page
+    var headphone_finish = {
+        type: "html-button-response",
+        stimulus: '<p>Calibration complete. Press <b>Continue</b> to move on.</p>',
+        choices: ['Continue']
+    }            
+    timeline.push(headphone_finish);
+    
+    /////////////////////////////////////
+    // Trial-feedback loop
+    // Playback screen
+    var playback = {
+      type: "html-keyboard-response",
+      stimulus: "",
+      choices: ['.'],
+      trial_duration: 65 * 32,
+      on_start: function(playback) {
+        // Get the scramble types
+        cur_type = trials_type[cur_block][cur_trial];
+
+        // Play the specified scramble and hold onto its specs
+        trial_obj = play_scramble(cur_type, cond_order[cur_block]);
+
+        // Iterate trial number
+        cur_trial++;
+
+        // Get timestamp
+        stim_start_time = Date.now();
+      },
+      on_finish: function(data) {
+        // Get timestamp
+        stim_end_time = Date.now();
+
+        if (jsPsych.pluginAPI.convertKeyCodeToKeyCharacter(data.key_press) == '.') {
+          // NaN because no answer provided on this trial
+          trial_resp = NaN;
+
+          // Skip the current timeline
+          jsPsych.endCurrentTimeline();
+        }
+      }
+    }
+
+    var trial = {
+      type: "html-keyboard-response",
+      stimulus: "Error! This text should not appear!",
+      choices: ["1", "2"],
+      on_start: function(trial) {
+        // Set up text for this trial
+        trial.stimulus = ("<p><b>Trial ").concat(cur_trial.toString()).concat(" of ").concat(training_bool ? ntrials_train.toString() : ntrials.toString()).concat("</b></p><p>Press 1 for <i>minor</i> (Type 1). Press 2 for <i>major</i> (Type 2).</p>");
+      },
+      on_finish: function(data) {
+        // Get timestamp
+        resp_time = Date.now();
+
+        // Convert key press to 1 or 2
+        trial_resp = (jsPsych.pluginAPI.convertKeyCodeToKeyCharacter(data.key_press) == '1') ? 1 : 2;
+
+        // Update globals so feedback screen is accurate
+        if (trial_resp == cur_type) {
+          last_correct = true;
+          total_correct++;
+        } else {
+          last_correct = false;
+        }
+
+        // Append the trial parameters and results to the data array
+        trial_data = trial_data.concat({
+          subj_id: sid,
+          block: cur_block,
+          condition: cond_order[cur_block],
+          training_bool: training_bool,
+          cur_trial: cur_trial,
+          scramble_type: cur_type,
+          response: trial_resp,
+          stim_start_time: stim_start_time,
+          stim_end_time: stim_end_time,
+          resp_time: resp_time,
+          seq: trial_obj.seq,
+          cond_order: cond_order_test,
+          latin_row: latin_row,
+          lang: lang,
+          lang_other: lang_other,
+          years_train: years_train,
+          device_samp_hz: fs
+        });
+        
+        // Update the progress bar on every trial (only during testing phase)
+        if (!training_bool) {
+          exp_progress += (1/600);
+          jsPsych.setProgressBar(exp_progress);
+        }
+      }
+    }
+
+    // Feedback screen
+    var feedback = {
+      type: "html-keyboard-response",
+      stimulus: "Error! This text should not appear!",
+      choices: ["spacebar"],
+      post_trial_gap: 150,
+      on_start: function(feedback) {
+        stop_scramble();
+        if (last_correct) {
+          feedback.stimulus = "<p style='color:green'><b>CORRECT</b></p><p>Press space bar to continue.</p>"
+        } else {
+          feedback.stimulus = "<p style='color:red'><b>INCORRECT</b></p><p>Press space bar to continue.</p>"
+        }
+      }
+    }
+
+    // Block timeline
+    var block_timeline = {
+      timeline: [playback, trial, feedback],
+      repetitions: ntrials
+    }
+    
+    // Block timeline for training phase
+    var block_timeline_train = {
+      timeline: [playback, trial, feedback],
+      repetitions: ntrials_train
+    }
+
+    /////////////////////////////////////
+    // Testing block setup
+    var preblock_setup = {
+      type: "html-keyboard-response",
+      stimulus: "",
+      choices: [],
+      trial_duration: 10,
+      on_start: function(playback) {
+        // Switch off training mode once training blocks are done
+        if (training_bool & cur_block == 5) {
+          training_bool = false;
+          cur_block = -1;
+          cond_order = cond_order_test;
+          trials_type = trials_type_test;
+        }
+        
+        // Reset trial counter, iterate block counter
+        cur_block += 1
+        cur_trial = 0;
+      }
+    }
+    
+    var latsq_updated = false;
+    var preblock_welcome = {
+      type: "html-keyboard-response",
+      stimulus: "Error! This text should not appear!",
+      choices: ["spacebar"],
+      post_trial_gap: 600,
+      on_start: function(preblock_welcome) {
+        // Create the message that appears
+        tag = "Remember, your task is to identify whether each stimulus is <i>minor</i> (Type 1) or <i>major</i> (Type 2).";
+        preblock_welcome.stimulus = ("<p><b>Entering Block ").concat((cur_block + 1).toString()).concat(" of 12</b></p><p>").concat(tag).concat("</p><p>Press space bar to hear examples.</p>");
+
+        // Format data as csv
+        var blob = new Blob([ConvertToCSV(trial_data)]);
+
+        // Create file ref and put
+        var file_ref = firebase.storage().ref(("data/").concat(fname).concat(".csv"));
+        file_ref.put(blob).then(function(snapshot) {
+          console.log('Results saved!');
+        });
+
+        // Update the Latin square to claim the row currently in use
+        // Do this during the preblock welcome so that participants have to at least get through training before claiming
+        // This only needs to be updated once, so use a conditional to check if already done.
+        if (!latsq_updated) {
+          var lat_ref = firebase.storage().ref("latsq/latsq.csv");
+          var lat_blob = new Blob([ConvertToCSV(latin_sq)]);
+          lat_ref.put(lat_blob).then(function(snapshot) {
+            console.log('Latin square updated.');
+            latsq_updated = true;
+          });
+        }
+      }
+    }
+
+    // Type 1 example
+    var example_trial1 = {
+      type: "html-keyboard-response",
+      stimulus: "<p><b>This is a <i>minor</i> (Type 1) stimulus.</b></p><p>Press space bar to continue.</p>",
+      choices: ["spacebar"],
+      post_trial_gap: 150,
+      on_start: function(trial) {
+        // Setup example and play sound
+        trial_obj = play_scramble(1, cond_order[cur_block]);
+
+        // Get timestamp
+        stim_start_time = Date.now();
+      },
+      on_finish: function() {
+        stop_scramble();
+        // Append the example parameters and results to the data array
+        trial_data = trial_data.concat({
+          subj_id: sid,
+          block: cur_block,
+          condition: cond_order[cur_block],
+          training_bool: training_bool,
+          cur_trial: NaN,
+          scramble_type: 1,
+          response: NaN,
+          stim_start_time: stim_start_time,
+          stim_end_time: NaN,
+          resp_time: NaN,
+          seq: trial_obj.seq,
+          cond_order: cond_order_test,
+          latin_row: latin_row,
+          lang: lang,
+          lang_other: lang_other,
+          years_train: years_train,
+          device_samp_hz: fs
+        });
+      }
+    }
+
+    // Type 2 example
+    var example_trial2 = {
+      type: "html-keyboard-response",
+      stimulus: "<p><b>This is a  <i>major</i> (Type 2) stimulus.</b></p><p>Press space bar to continue.</p>",
+      choices: ["spacebar"],
+      post_trial_gap: 150,
+      on_start: function(trial) {
+        // Setup example and play sound
+        trial_obj = play_scramble(2, cond_order[cur_block]);
+
+        // Get timestamp
+        stim_start_time = Date.now();
+      },
+      on_finish: function() {
+        stop_scramble();
+        // Append the example parameters and results to the data array
+        trial_data = trial_data.concat({
+          subj_id: sid,
+          block: cur_block,
+          condition: cond_order[cur_block],
+          training_bool: training_bool,
+          cur_trial: NaN,
+          scramble_type: 2,
+          response: NaN,
+          stim_start_time: stim_start_time,
+          stim_end_time: NaN,
+          resp_time: NaN,
+          seq: trial_obj.seq,
+          cond_order: cond_order_test,
+          latin_row: latin_row,
+          lang: lang,
+          lang_other: lang_other,
+          years_train: years_train,
+          device_samp_hz: fs
+        });
+      }
+    }
+
+    // Proceed? screen
+    var example_wrapup = {
+      type: "html-keyboard-response",
+      stimulus: "<p><b>Ready?</b></p><p>Press Y to begin testing. Or, press N to repeat the examples.</p>",
+      choices: ["y", "n"],
+      post_trial_gap: 600,
+      on_finish: function(data) {
+        if (data.key_press == jsPsych.pluginAPI.convertKeyCharacterToKeyCode("y")) {
+          loop_again = true;
+        } else {
+          loop_again = false;
+        }
+      }
+    }
+
+    // Example loop
+    var example_loop = {
+      timeline: [example_trial1, example_trial2, example_trial1, example_trial2, example_wrapup],
+      loop_function: function() {
+        if (loop_again) {
+          return false;
+        } else {
+          return true;
+        }
+      }
+    }
+
+    /////////////////////////////////////
+    // Remaining experimental setup depends on Latin square, so resolve Latin square first
+    var lat_ref = firebase.storage().ref("latsq/latsq.csv");
+    lat_ref.getDownloadURL().then(function(url) {
+      // TODO: this will throw an error "Refused to get unsafe header 'Content-Range'" but will run as normal.
+      Papa.parse(url, {
+        download: true,
+        header: true,
+        step: function(results) {
+          // Read from Latin square
+          latin_sq = latin_sq.concat(results.data);
+        },
+        complete: function() {
+          // Note: latsq.csv only has 600 valid rows. This is used to prevent EOF junk from being written/slowing down setup)
+          latin_sq.length = 600;
+
+          // Find next unclaimed row
+          for (let k = 0; k < latin_sq.length; k++) {
+            if (latin_sq[k].claimed == 0) {
+              latin_row = k;
+              break;
+            }
+          }
+          latin_sq[latin_row].claimed = 1;
+
+          // Read the condition order from the unclaimed row
+          cond_order_test = JSON.parse(latin_sq[latin_row].cond_seq);
+          
+          /////////////////////////////////////
+          // Training phase
+          // Piano training video
+          var training_piano = {
+            type:"video-button-response",
+            sources: ["media/instructions1.mp4"],
+            controls: true,
+            choices: ["I have watched the instructional video above."],
+            width: 640,
+            height: 480,
+            on_start: function(training_piano) {
+              exp_progress = 0.07;
+              jsPsych.setProgressBar(exp_progress);
+            }
+          };
+
+          // Pure tone training video
+          var training_pure = {
+            type:"video-button-response",
+            sources: ["media/instructions2.mp4"],
+            controls: true,
+            choices: ["I have watched the instructional video above."],
+            width: 640,
+            height: 480,
+            on_start: function(training_pure) {
+              exp_progress = 0.15;
+              jsPsych.setProgressBar(exp_progress);
+            }
+          };
+
+          // Training done video
+          var training_done = {
+            type:"video-button-response",
+            sources: ["media/instructions3.mp4"],
+            controls: true,
+            choices: ["I am ready to begin testing."],
+            width: 640,
+            height: 480,
+            on_start: function(training_done) {
+              exp_progress = 0.2;
+              jsPsych.setProgressBar(exp_progress);
+            }
+          };
+          
+          var preblock_welcome_train = {
+            type: "html-keyboard-response",
+            stimulus: "Error! This text should not appear!",
+            choices: ["spacebar"],
+            post_trial_gap: 600,
+            on_start: function(preblock_welcome_train) {
+              // Create the message that appears before each training block
+              // [3, 0, 4, 1, 5, 2];
+              switch(cond_order[cur_block]) {
+                case 3:
+                  tag = "<p>Next, you will hear examples of the two kinds of tone scrambles. These will be followed by 20 practice trials.</p>";
+                  break;
+                case 0:
+                  tag = "<p>Sometimes, tone scrambles will have a <b>higher pitch</b>. Your task is still to categorize them based on their major and minor qualities. You will hear higher pitched examples next. Listen carefully for their major and minor qualities. The examples will be followed by 20 practice trials.</b></p>";
+                  break;
+                case 4:
+                  tag = "<p>Next, you will hear examples of the <b>pure-tone</b> tone scrambles. These will be followed by 20 practice trials.</p>";
+                  break;
+                case 1:
+                  tag = "<p>Pure-tone tone scrambles may have a <b>higher pitch</b>. Your task is still to categorize them based on their major and minor qualities. You will hear higher pitched examples next. Listen carefully for their major and minor qualities. The examples will be followed by 20 practice trials.</p>";
+                  break;
+                case 5:
+                  tag = "<p>Sometimes, the pure-tone tone scrambles may be played <b>faster</b>. Your task is still to categorize them based on their major and minor qualities. You will hear faster examples next. Listen carefully for their major and minor qualities. The examples will be followed by 20 practice trials.</p>";
+                  break;
+                case 2:
+                  tag = "<p>Fast tone scrambles may also have a <b>higher pitch</b>. Your task is still to categorize them based on their major and minor qualities. You will hear higher pitched examples next. Listen carefully for their major and minor qualities. The examples will be followed by 20 practice trials.</p>";
+                  break;
+              }
+              preblock_welcome_train.stimulus = tag.concat("<p>Press space bar to hear the examples.</p>");
+            }
+          }
+          
+          // Timeline for the entire training phase
+          var phase_train = {
+            timeline: [training_piano, preblock_setup, preblock_welcome_train, example_loop, block_timeline_train,
+                                       preblock_setup, preblock_welcome_train, example_loop, block_timeline_train,
+                       training_pure,  preblock_setup, preblock_welcome_train, example_loop, block_timeline_train,
+                                       preblock_setup, preblock_welcome_train, example_loop, block_timeline_train,
+                                       preblock_setup, preblock_welcome_train, example_loop, block_timeline_train,
+                                       preblock_setup, preblock_welcome_train, example_loop, block_timeline_train,
+                       training_done]
+          }
+          
+          /////////////////////////////////////
+          // Testing phase
+          // 12 repetitions, twice for each condition
+          var phase_test = {
+            timeline: [preblock_setup, preblock_welcome, example_loop, block_timeline],
+            repetitions: 12,
+            randomize_order: false
+          }
+          
+          // Setup the timeline
+          timeline.push(phase_train);
+          timeline.push(phase_test);
+
+          /////////////////////////////////////
+          // Thank you page
+          var thank_you = {
+            type: "html-keyboard-response",
+            stimulus: "<p><b>All done! Thank you for your participation. Please allow up to 24 hours for credit to appear on your account.</b></p><p>A copy of your data should be automatically saved to your computer. Please keep this file for your records.</p><p>You can close this window now.</p>",
+            choices: [],
+            on_start: function() {
+              // Save data locally as csv. Source: https://github.com/mholt/PapaParse/issues/175
+              var blob = new Blob([ConvertToCSV(trial_data)]);
+              if (window.navigator.msSaveOrOpenBlob) // IE hack; see http://msdn.microsoft.com/en-us/library/ie/hh779016.aspx
+                window.navigator.msSaveBlob(blob, fname.concat(".csv"));
+              else {
+                var a = window.document.createElement("a");
+                a.href = window.URL.createObjectURL(blob, {
+                  type: "text/plain"
+                });
+                a.download = fname.concat(".csv");
+                document.body.appendChild(a);
+                a.click(); // IE: "Access is denied"; see: https://connect.microsoft.com/IE/feedback/details/797361/ie-10-treats-blob-url-as-cross-origin-and-denies-access
+                document.body.removeChild(a);
+              }
+
+              // Create file ref and put
+              var file_ref = firebase.storage().ref(("data/").concat(fname).concat(".csv"));
+              file_ref.put(blob).then(function(snapshot) {
+                console.log('Results saved!');
+              });
+            }
+          }
+          timeline.push(thank_you);
+
+          /////////////////////////////////////
+          // Execute experiment logic specified above
+          jsPsych.init({
+            timeline: timeline,
+            show_progress_bar: true,
+            auto_update_progress_bar: false
+          });
+        }
+      });
+    });
+
+  </script>
+</body>
+
+</html>
