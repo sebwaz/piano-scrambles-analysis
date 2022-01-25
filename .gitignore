@@ -2,3 +2,20 @@
 .Rhistory
 .RData
 .Ruserdata
+_backup
+_screenshots_notes
+data
+localfiles
+site/.firebase
+site/.firebaserc
+site/.gitignore
+site/firebase.json
+site/firebase-tools-instant-win.exe
+site/storage.rules
+Cloud SDK folder (data will end up here).lnk
+Google Cloud SDK Shell.lnk
+JH experiment.url
+LatinSquare.mat
+download_all_gcloud.txt
+how to test firebase on localhost.url
+scatter.png
