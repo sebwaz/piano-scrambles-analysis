@@ -21,9 +21,9 @@ get_candidate <- function(last_sample, mins, maxes, sigmas, dp) {
     # Generate a candidate
     tmp <- last_sample + sigmas * rnorm(length(sigmas))
 
-    # Constrain sum(F_t) = 7
+    # Constrain sum(F) = length(F)
     idx <- (nrow(dp) + 1):(nrow(dp) + ncol(dp))
-    tmp[idx] <- 7 * tmp[idx] / sum(tmp[idx])
+    tmp[idx] <- ncol(dp) * tmp[idx] / sum(tmp[idx])
 
     # Return candidate only if it falls within bounds
     if (all(tmp > mins) & all(tmp < maxes)) {
