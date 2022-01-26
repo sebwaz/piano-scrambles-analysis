@@ -149,6 +149,11 @@ mcmc <- function(d_prime, n_samples, n_thin, last_sample, last_sigmas, last_sigm
     }
   }
   
+  # Name the columns of the samples matrix
+  colnames(samples) <- c(paste("R", 1:nrow(dp), sep = "_"),
+                         paste("F", 1:ncol(dp), sep = "_"),
+                         "sigma")
+  
   # Done
   return(list(
     "samples"         = samples,
