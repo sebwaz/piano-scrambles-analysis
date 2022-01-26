@@ -451,9 +451,14 @@ ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), 
 
 # Run MCMC
 source(here::here("data-wrangling", "mcmc.R"))
-burnin    <- mcmc(dp, 10000000, 1000)
-posterior <- mcmc(dp, 10000000, 1000, tail(burnin$samples, 1), burnin$sigmas, burnin$sigma_scalar)
+if (!file.exists(here::here("data", "posterior_samples.rds"))) {
+  burnin    <- mcmc(dp, 10000000, 1000)
+  posterior <- mcmc(dp, 10000000, 1000, tail(burnin$samples, 1), burnin$sigmas, burnin$sigma_scalar)
 
-# Save the samples just taken
-save(burnin, posterior,
-     file = here::here("data", "clean_data.rds"))
+  # Save the samples just taken
+  save(burnin, posterior,
+       file = here::here("data", "posterior_samples.rds"))
+} else {
+  load(here::here("data", "posterior_samples.rds"))
+}
+
