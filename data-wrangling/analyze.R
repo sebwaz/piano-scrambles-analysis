@@ -235,7 +235,13 @@ n_passed / n
 
 
 # Fit a linear model to measure the effect of pass/no pass, and whether it modulates any of the condition-specific effects
+#  A: it does not affect results
 summary(lm(dprime ~ passed + factor(condition) + factor(condition) * passed - 1, data = X))
+
+
+# Fit a linear model to measure the effect of the system's sampling rate
+#  A: It has no effect
+summary(lm(dprime ~ factor(condition) + factor(condition) * factor(device_samp_hz) - 1, data = X))
 
 
 # Plot the d's in each condition, using color to separate pass/no pass
@@ -461,4 +467,86 @@ if (!file.exists(here::here("data", "posterior_samples.rds"))) {
 } else {
   load(here::here("data", "posterior_samples.rds"))
 }
+
+
+
+# Process samples a little bit to get credible intervals
+tbl <- as_tibble(posterior$samples)
+
+posterior_F <- tbl %>%
+  pivot_longer(cols = everything(), names_to = "parameter") %>%
+  filter(parameter %in% paste("F", 1:6, sep = "_"))
+
+posterior_F_CI <- posterior_F %>%
+  group_by(parameter) %>%
+  summarize(Median = median(value),
+            CI_L = quantile(value, 0.025),
+            CI_U = quantile(value, 0.975))
+  
+# Plot the posterior estimates as violin plot
+ggplot(data = posterior_F,
+       aes(x = parameter, y = value)) +
+geom_violin(fill = "gray80", color = "gray70") +
+geom_errorbar(data = posterior_F_CI,
+              mapping = aes(x = parameter, ymin = CI_L, ymax = CI_U),
+              width = 0.2,
+              inherit.aes = FALSE) +
+
+# Add median point
+geom_point(data = posterior_F_CI,
+           mapping = aes(x = parameter, y = Median),
+           inherit.aes = FALSE) +
+
+# Add labels
+labs(x = expression(paste("Task ", italic(t))),
+     y = expression("F"[t])
+) +
+
+# Set y-limits, background color, text size
+ylim(0, 1.4) +
+theme_bw() +
+theme(text = element_text(size = 12))
+
+
+
+# Look at the shape of the distributions
+tbl %>%
+  select(contains("F")) %>%
+  ggpairs(1:6)
+
+
+
+# Look at the difference between fast-pure-G5 and slow-piano-C4
+tbl %>%
+  select(contains("F")) %>%
+  mutate(diff = F_4 - F_3) %>%
+  summarize(Median = median(diff),
+            CI_L = quantile(diff, 0.025),
+            CI_U = quantile(diff, 0.975)) %>%
+
+
+  
+# Look at the shape of the posterior difference
+tbl %>%
+  select(contains("F")) %>%
+  mutate(diff = F_4 - F_3) %>%  
+  ggplot(aes(diff)) +
+  geom_histogram(binwidth = 0.02, color = "black", fill = "steelblue3", size = 1)
+
+
+
+# Look at the distribution of R
+tbl %>%
+  select(contains("R")) %>%
+  pivot_longer(cols = everything(), names_to = "parameter") %>%
+  group_by(parameter) %>%
+  summarize(Median = median(value),
+            CI_L = quantile(value, 0.025),
+            CI_U = quantile(value, 0.975)) %>%
+  ggplot(aes(Median)) +
+  geom_histogram(binwidth = 0.5, color = "black", fill = "steelblue3", size = 1) +
+  labs(x = expression("R"[s]),
+       title = expression(~bold("Distribution of median posterior R estimates"))
+  )
+  
 
