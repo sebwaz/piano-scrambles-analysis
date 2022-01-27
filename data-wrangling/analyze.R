@@ -550,3 +550,39 @@ tbl %>%
   )
   
 
+
+###
+### Calculate R^2 of the bilinear model
+###
+
+# Take posterior medians as parameter point estimate
+median_posterior_samples <- tbl %>%
+  pivot_longer(cols = everything(), names_to = "parameter") %>%
+  group_by(parameter) %>%
+  summarize(Median = median(value))
+
+# F estimates (take extra pains to ensure they come out in the right order)
+F_hat <- median_posterior_samples %>%
+  filter(grepl("F",parameter)) %>%
+  mutate(cond_num = as.numeric(str_replace(parameter, "F_", "")) - 1) %>%
+  arrange(cond_num) %>%
+  select(Median)
+
+# R estimates (take extra pains to ensure they come out in the right order)
+R_hat <- median_posterior_samples %>%
+  filter(grepl("R",parameter)) %>%
+  mutate(subj_num = as.numeric(str_replace(parameter, "R_", ""))) %>%
+  arrange(subj_num) %>%
+  select(Median)
+
+# Predicted d's
+dp_pred <- as.matrix(R_hat) %*% as.matrix(t(F_hat))
+
+# Calculate R^2
+grand_mean <- mean(as.vector(dp))
+ss_tot     <- sum(as.vector(dp - grand_mean) ^ 2)
+ss_res     <- sum(as.vector(dp -    dp_pred) ^ 2)
+Rsq <- (ss_tot - ss_res) / ss_tot
+Rsq
+
+
