@@ -585,4 +585,27 @@ ss_res     <- sum(as.vector(dp -    dp_pred) ^ 2)
 Rsq <- (ss_tot - ss_res) / ss_tot
 Rsq
 
+# Create a matrix with predicted and observed d's to plot
+colnames(dp_pred) <- paste("predicted", labs, sep = "_")
+dp_tbl <- cbind(1:n, dp, dp_pred)
+colnames(dp_tbl)[1] <- "subj_num"
+dp_tbl <- as_tibble(dp_tbl) %>%
+  pivot_longer(cols = contains("val"),
+               names_to = c("column_name", ".value", "condition"),
+               names_sep = "_",
+               values_to = "column_value") %>%
+  pivot_wider(names_from = "column_name",
+              values_from = "val")
 
+# Plot observed vs. predicted d's
+dp_tbl %>%
+  ggplot(aes(x = dprime, y = predicted, color)) +
+  geom_point(aes(color = condition), size = 2) +
+  geom_abline(intercept = 0, slope = 1) +
+  xlim(c(-1, 5)) +
+  ylim(c(-1, 5)) +
+  labs(x = "observed d'",
+       y = "predicted d'",
+       title = "bilinear model fit"
+  )
+  
