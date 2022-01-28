@@ -552,7 +552,7 @@ tbl %>%
 
 
 ###
-### Calculate R^2 of the bilinear model
+### Calculate R^2 of the bilinear model ---------------------
 ###
 
 # Take posterior medians as parameter point estimate
@@ -608,4 +608,16 @@ dp_tbl %>%
        y = "predicted d'",
        title = "bilinear model fit"
   )
-  
+
+
+
+###
+### Do F-tests of the bilinear model and models with additional components ---------------------------
+###
+
+source(here::here("data-wrangling", "bilinear_svd.R"))
+mdl_svd <- bilinear_svd(dp)
+
+# Verify that what we get from SVD is reasonably close to the point estimates from MCMC (yes)
+summary(mdl_svd$F[1, ] - F_hat)
+summary(mdl_svd$R[, 1] - R_hat)
