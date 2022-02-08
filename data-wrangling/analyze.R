@@ -621,3 +621,38 @@ mdl_svd <- bilinear_svd(dp)
 # Verify that what we get from SVD is reasonably close to the point estimates from MCMC (yes)
 summary(mdl_svd$F[1, ] - F_hat)
 summary(mdl_svd$R[, 1] - R_hat)
+
+
+
+###
+### Try to fit a mixture of Gaussians to the d's --------------------------
+###
+
+# Try to categorize listeners into high- and low-performers using a Gaussian mixture
+library(mclust)
+fit  <- list()
+crit <- list()
+par(mfrow = c(1, 6))
+for (k in 1:6) {
+  # Fit the mixture of two Gaussians, add to the plot
+  fit[[k]] <- Mclust(dp[, k], G = 2)
+  plot.Mclust(fit[[k]], what = "density")
+  #print(fit[[k]]$parameters$mean)
+  
+  # Find the approximate intersection of the two Gaussian densities, i.e., the point where the MLE of category changes
+  # (Just use the categorization MClust provides, no genuine root finding)
+  # (Note that Gaussians will technically have two intersections if unequal variance, so very low individuals may end up in the high group w/o this step)
+  lo <- max(dp[fit[[k]]$classification == 1 & dp[, k] < fit[[k]]$parameters$mean[2], k])
+  hi <- min(dp[fit[[k]]$classification == 2 & dp[, k] > fit[[k]]$parameters$mean[1], k])
+  cr <- mean(c(lo, hi))
+  
+  crit[[k]] <- list(
+    "lo" = lo,
+    "hi" = hi,
+    "crit" = cr
+  )
+}
+
+# # Redo the categorization yourself, just using the criterion (to prevent the miscategorization mentioned above)
+# final_scores <- final_scores %>%
+#   mutate(high_performer = (end_score > crit))
