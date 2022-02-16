@@ -18,7 +18,7 @@ P = [];
 for k = 1:size(dprimes,2)
     
     % Degrees of freedom calculations
-    dfx(k)   = size(R(:, k), 1) + size(F(k, :), 2) - (2 * k - 1);
+    dfx(k)   = size(R(:, k), 1) + size(F(k, :), 2) - (2 * k - 1); % The extra is likely due to the constraint that each component must be orthogonal to previous components
     dfres(k) = size(R(:, k), 1) * size(F(k, :), 2) - sum(dfx);
     
     % SS calculations
