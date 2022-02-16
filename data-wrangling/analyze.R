@@ -340,8 +340,7 @@ cond_labeller <- function(variable, value){
   return(cond_names[value])
 }
 
-# Plot counter
-ctr <- 0
+
 
 ## Reproduce basic finding (in d's)
 ggplot(data = X, aes(dprime)) +
@@ -353,8 +352,7 @@ ggplot(data = X, aes(dprime)) +
   ) +
   ylim(c(0, 50)) +
   theme(text = element_text(size = 16))
-ctr <- ctr + 1
-ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
+ggsave(here::here("data-wrangling", paste("fig_", "dprime_histograms", ".png", sep = "")), plot = last_plot(), width = 14, height = 4, units = "in")
 
 
 
@@ -362,14 +360,13 @@ ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), 
 ggplot(data = X, aes(pcorrect)) +
   geom_histogram(binwidth = 0.1, color = "black", fill = "steelblue3", size = 1) +
   facet_grid(. ~ condition, labeller = cond_labeller) +
-  scale_x_continuous(breaks = seq(0, 1, 0.1)) +
-  labs(x = expression("% correct"),
-       title = expression(~bold("Bimodality in percent correct"))
+  scale_x_continuous(breaks = seq(0, 1, 0.2)) +
+  labs(x = expression("Proportion correct"),
+       title = expression(~bold("Bimodality in proportion correct"))
   ) +
   ylim(c(0, 50)) +
   theme(text = element_text(size = 16))
-ctr <- ctr + 1
-ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
+ggsave(here::here("data-wrangling", paste("fig_", "pcorr_histograms", ".png", sep = "")), plot = last_plot(), width = 14, height = 4, units = "in")
 
 
 
@@ -386,8 +383,7 @@ X %>%
        title = expression(~bold("At least two participants appear to have rushed (one extremely long observation omitted)"))
   ) +
   theme(text = element_text(size = 12))
-ctr <- ctr + 1
-ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
+ggsave(here::here("data-wrangling", paste("fig_", "pcorr_vs_ttc", ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
 
 
 
@@ -400,6 +396,12 @@ hdl <- X %>%
               names_from = condition,
               names_prefix = "cond",
               values_from = dprime) %>%
+  rename(`slow, piano, G5` = cond0) %>%
+  rename(`slow, pure, G5`  = cond1) %>%
+  rename(`fast, pure, G5`  = cond2) %>%
+  rename(`slow, piano, C4` = cond3) %>%
+  rename(`slow, pure, C4`  = cond4) %>%
+  rename(`fast, pure, C4`  = cond5) %>%
   ggpairs(columns = 2:7)
 for (i in 2:hdl$nrow) {
   for (j in 1:(i-1)) {
@@ -407,8 +409,7 @@ for (i in 2:hdl$nrow) {
   }
 }
 hdl
-ctr <- ctr + 1
-ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
+ggsave(here::here("data-wrangling", paste("fig_", "pairwise_plots", ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
 
 
 
@@ -425,9 +426,8 @@ X %>%
        title = expression(~bold("No clear relationship between training and effect of piano (impairs highly trained Mandarin speakers?)")),
        color = "Native language"
   ) +
-  theme(text = element_text(size = 12))
-ctr <- ctr + 1
-ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
+  theme(text = element_text(size = 10))
+ggsave(here::here("data-wrangling", paste("fig_", "contrast_vs_training", ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
 
 
 
@@ -446,8 +446,7 @@ X %>%
   xlim(c(-2.5, 2.5)) +
   ylim(c(-2.5, 2.5)) +
   theme(text = element_text(size = 16))
-ctr <- ctr + 1
-ggsave(here::here("data-wrangling", paste(today(), "-",ctr, ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
+ggsave(here::here("data-wrangling", paste("fig_", "pairwise_biases", ".png", sep = "")), plot = last_plot(), width = 10, height = 6, units = "in")
 
 
 
@@ -498,21 +497,36 @@ geom_point(data = posterior_F_CI,
            inherit.aes = FALSE) +
 
 # Add labels
-labs(x = expression(paste("Task ", italic(t))),
-     y = expression("F"[t])
-) +
+scale_x_discrete(name = expression(paste("Task ", italic(t))),
+                 breaks = waiver(),
+                 labels = c("slow, piano, G5",
+                            "slow, pure,  G5",
+                            "fast, pure,  G5",
+                            "slow, piano, C4",
+                            "slow, pure,  C4",
+                            "fast, pure,  C4")) + 
+labs(y = expression("F"[t])) +
 
 # Set y-limits, background color, text size
 ylim(0, 1.4) +
 theme_bw() +
 theme(text = element_text(size = 12))
+ggsave(here::here("data-wrangling", paste("fig_", "F_violin_plot", ".png", sep = "")), plot = last_plot(), width = 8, height = 6, units = "in")
 
 
 
 # Look at the shape of the distributions
 tbl %>%
   select(contains("F")) %>%
-  ggpairs(1:6)
+  rename(`slow, piano, G5` = F_1) %>%
+  rename(`slow, pure, G5`  = F_2) %>%
+  rename(`fast, pure, G5`  = F_3) %>%
+  rename(`slow, piano, C4` = F_4) %>%
+  rename(`slow, pure, C4`  = F_5) %>%
+  rename(`fast, pure, C4`  = F_6) %>%
+  ggpairs(1:6) +
+  labs(title = "Posterior F estimates")
+ggsave(here::here("data-wrangling", paste("fig_", "F_pairwise_plot", ".png", sep = "")), plot = last_plot(), width = 8, height = 6, units = "in")
 
 
 
@@ -531,7 +545,10 @@ tbl %>%
   select(contains("F")) %>%
   mutate(diff = F_4 - F_3) %>%  
   ggplot(aes(diff)) +
-  geom_histogram(binwidth = 0.02, color = "black", fill = "steelblue3", size = 1)
+  geom_histogram(binwidth = 0.02, color = "black", fill = "steelblue3", size = 1) +
+  labs(x = expression("F"[slowPianoC4]*" - F"[fastPureG5]),
+    title = "Posterior contrast")
+ggsave(here::here("data-wrangling", paste("fig_", "posterior_contrast", ".png", sep = "")), plot = last_plot(), width = 8, height = 6, units = "in")
 
 
 
@@ -548,7 +565,8 @@ tbl %>%
   labs(x = expression("R"[s]),
        title = expression(~bold("Distribution of median posterior R estimates"))
   )
-  
+ggsave(here::here("data-wrangling", paste("fig_", "R_distribution", ".png", sep = "")), plot = last_plot(), width = 8, height = 6, units = "in")
+
 
 
 ###
@@ -606,8 +624,9 @@ dp_tbl %>%
   ylim(c(-1, 5)) +
   labs(x = "observed d'",
        y = "predicted d'",
-       title = "bilinear model fit"
+       title = "Bilinear model fit"
   )
+ggsave(here::here("data-wrangling", paste("fig_", "bilinear_model_fit", ".png", sep = "")), plot = last_plot(), width = 8, height = 6, units = "in")
 
 
 
