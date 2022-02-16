@@ -642,9 +642,10 @@ summary(mdl_svd$F[1, ] - F_hat)
 summary(mdl_svd$R[, 1] - R_hat)
 
 # Save to do simulations in Matlab (easier to parallelize)
-write_csv(as.data.frame(mdl_svd$R), here::here("data-wrangling", "bilinear_fit_R.csv"))
-write_csv(as.data.frame(mdl_svd$F), here::here("data-wrangling", "bilinear_fit_F.csv"))
-
+write_csv(as.data.frame(mdl_svd$R),     here::here("data-wrangling", "bilinear_fit_R.csv"))
+write_csv(as.data.frame(mdl_svd$F),     here::here("data-wrangling", "bilinear_fit_F.csv"))
+write_csv(as.data.frame(mdl_svd$ssres), here::here("data-wrangling", "bilinear_fit_SSres.csv"))
+write_csv(as.data.frame(dp),            here::here("data-wrangling", "dprimes.csv"))
 
 
 ###
