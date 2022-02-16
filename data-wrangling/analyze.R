@@ -522,7 +522,7 @@ tbl %>%
   mutate(diff = F_4 - F_3) %>%
   summarize(Median = median(diff),
             CI_L = quantile(diff, 0.025),
-            CI_U = quantile(diff, 0.975)) %>%
+            CI_U = quantile(diff, 0.975))
 
 
   
@@ -653,6 +653,5 @@ for (k in 1:6) {
   )
 }
 
-# # Redo the categorization yourself, just using the criterion (to prevent the miscategorization mentioned above)
-# final_scores <- final_scores %>%
-#   mutate(high_performer = (end_score > crit))
+
+
