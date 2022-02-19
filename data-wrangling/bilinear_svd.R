@@ -52,7 +52,7 @@ bilinear_svd <- function(dp) {
     ssres[k] <- sum(as.vector(err) ^ 2)
     ssr[k]   <- sst - ssres[k]
     if (k > 1) {
-      ssx[k] <- ssr[k] / dfx[k]
+      ssx[k] <- ssr[k] - ssr[k - 1]
     } else {
       ssx[k] <- ssr[k]
     }
