@@ -7,7 +7,9 @@ dp = readmatrix("dprimes.csv");
 % Do the final posterior samples
 [samples, candids, loglike_s, loglike_c, sigmas, sigma_scalar] = mcmc(dp, 10000000, 1000, samples(1, :), sigmas, sigma_scalar);
 
-
+% Save results
+save("mcmc1_samples.mat");
+writematrix(samples, "mcmc1_samples.csv");
 
 % Update the sigmas used to generate candidates
 function [sigmas, sigma_scalar] = update_sigmas(sigmas, samples_block, like_ratios, sigma_scalar)

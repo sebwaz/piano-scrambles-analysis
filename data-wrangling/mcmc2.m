@@ -64,6 +64,7 @@ F  = readmatrix("bilinear_fit_F.csv");
 
 % Save results
 % save("mcmc2_samples_simulated_dataX.mat");
+% writematrix(samples, "mcmc2_samples.csv");
 
 % Plot the chains
 figure;
@@ -112,8 +113,6 @@ title("Component 2");
 plot([-30, 30], [-30, 30], ':k');
 legend({'R_2', 'F_2', 'x = y'});
 axis square
-
-
 
 % Autocorrelation plots, one by one
 figure;
