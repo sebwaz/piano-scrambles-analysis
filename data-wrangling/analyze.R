@@ -168,6 +168,7 @@ nl <- character(n)                  # native language
 yt <- matrix(, nrow = n, ncol = 1)  # years of music training
 ph <- matrix(, nrow = n, ncol = 1)  # passed headphone check?
 
+
 # Fill the matrices 
 for (k in 1:n) {
   dp[k, ] <- all_data[[k]]$dprime_cond
@@ -455,18 +456,22 @@ ggsave(here::here("data-wrangling", paste("fig_", "pairwise_biases", ".png", sep
 ###
 
 # Run MCMC
-source(here::here("data-wrangling", "mcmc.R"))
-if (!file.exists(here::here("data", "posterior_samples.rds"))) {
-  burnin    <- mcmc(dp, 10000000, 1000)
-  posterior <- mcmc(dp, 10000000, 1000, tail(burnin$samples, 1), burnin$sigmas, burnin$sigma_scalar)
+source(here::here("data-wrangling", "mcmc2.R"))
+if (!file.exists(here::here("data", "posterior_samples2.rds"))) {
+  burnin    <- mcmc2(dp, 10000000, 1000)
+  posterior <- mcmc2(dp, 10000000, 1000, tail(burnin$samples, 1), burnin$sigmas, burnin$sigma_scalar)
 
   # Save the samples just taken
   save(burnin, posterior,
-       file = here::here("data", "posterior_samples.rds"))
+       file = here::here("data", "posterior_samples2.rds"))
 } else {
-  load(here::here("data", "posterior_samples.rds"))
+  load(here::here("data", "posterior_samples2.rds"))
 }
 
+source(here::here("data-wrangling", "bilinear_svd.R"))
+bfit <- bilinear_svd(dp)
+svd_est <- c(bfit$R[, 1], bfit$F[1, ], bfit$R[, 2], bfit$F[2, ])
+test <- mcmc2(dp, 1000000, 1000, c(svd_est, 1))
 
 
 # Process samples a little bit to get credible intervals
@@ -646,6 +651,19 @@ write_csv(as.data.frame(mdl_svd$R),     here::here("data-wrangling", "bilinear_f
 write_csv(as.data.frame(mdl_svd$F),     here::here("data-wrangling", "bilinear_fit_F.csv"))
 write_csv(as.data.frame(mdl_svd$ssres), here::here("data-wrangling", "bilinear_fit_SSres.csv"))
 write_csv(as.data.frame(dp),            here::here("data-wrangling", "dprimes.csv"))
+write_csv(as.data.frame(bi),            here::here("data-wrangling", "biases.csv"))
+
+# Create a matrix representing the counts
+ns <- matrix(, nrow = n, ncol = 6 * 4)  # counts of hits, misses, FAs, CRs
+for (k in 1:n) {
+  tmp <- all_data[[k]]$nHit_nMiss_nCR_nFA 
+  cnd <- all_data[[k]]$cond_order
+  for (h in 1:6) {
+    # print(tmp[cnd == h, ])
+    ns[k, 1:4 + (h - 1) * 4] <- colSums(tmp[cnd == h, ])
+  }
+}
+write_csv(as.data.frame(ns), here::here("data-wrangling", "counts.csv"))
 
 
 ###
