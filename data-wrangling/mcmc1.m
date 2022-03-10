@@ -33,7 +33,7 @@ while true
     
     % Constrain sum(F) = length(F)
     idx = (size(dp, 1) + 1):(size(dp, 1) + size(dp, 2));
-    tmp(idx) = size(dp, 1) * tmp(idx) / sum(tmp(idx));
+    tmp(idx) = size(dp, 2) * tmp(idx) / sum(tmp(idx));
     
     % Return candidate only if it falls within bounds
     if (all(tmp > mins) && all(tmp < maxes))
